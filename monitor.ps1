@@ -54,7 +54,7 @@ class Monitor{
         catch {
             Write-Host "failed to run 'Get-NetTCPConnection' cmdlet."
         }
-        return @("number_of_tcp-connections $($tcpConnections)")
+        return @("number_of_tcp_connections $($tcpConnections)")
     }
 
     [String[]] getMemory(){
@@ -83,53 +83,3 @@ class Monitor{
         return $metrics
     }
 }
-
-function StartHttpServer {
-    $my_monitor = [Monitor]::new()
-
-    $port = 9000
-    $listener = [System.Net.HttpListener]::new()
-    try {
-        $listener.Prefixes.Add("http://localhost:$port/")  # Bind to localhost
-        $listener.Start()
-        Write-Host "Server started on http://localhost:$port/metrics"
-    }
-    catch {
-        Write-Host "Failed to start HTTP listener: $_"
-        return
-    }
-
-    function HandleExit {
-        Write-Host "Exiting gracefully..."
-        if ($listener) {
-            $listener.Stop()
-            $listener.Close()
-            Write-Host "Listener stopped."
-        }
-        exit 0
-    }
-
-    while ($true) {
-
-        try {
-            $context = $listener.GetContext()
-            $response = $context.Response
-            $response.ContentType = "text/plain; version=0.0.4; charset=utf-8"
-            $response.StatusCode = 200
-
-            # Get the Prometheus metrics and write to the response
-            $metrics = $my_monitor.prometheusFormatting()  # this function returns your formatted metrics
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes($metrics)
-            $response.ContentLength64 = $buffer.Length
-            $response.OutputStream.Write($buffer, 0, $buffer.Length)
-
-            # Close the response stream
-            $response.OutputStream.Close()
-        }
-        catch {
-            Write-Host "Error while processing the request: $_"
-        }
-    }
-}
-
-StartHttpServer
