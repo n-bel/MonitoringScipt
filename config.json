@@ -1,0 +1,36 @@
+{
+  "services": [
+    {
+      "name": "Spooler",
+      "onFailure": {
+        "action": "email",
+        "recipients": ["admin@domaine.com"]
+      }
+    },
+    {
+      "name": "W3SVC",
+      "onFailure": {
+        "action": "restart"
+      }
+    }
+  ],
+  "resources": {
+    "cpu": {
+      "threshold": 80,
+      "alertAction": "email"
+    },
+    "disk": {
+      "drives": ["C:", "D:"],
+      "thresholdGB": 5,
+      "alertAction": "logOnly"
+    },
+    "memory": {
+      "threshold": 90,
+      "alertAction": "email"
+    }
+  },
+  "notification": {
+    "smtpServer": "smtp.tonserveur.local",
+    "from": "monitor@tondomaine.com"
+  }
+}
