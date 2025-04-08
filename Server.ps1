@@ -1,23 +1,27 @@
-. "$PSScriptRoot\Monitor.ps1"  # dot-source the Monitor class
+# Load the Monitor.ps1 script which contains the Monitor class definition
+. "$PSScriptRoot\Monitor.ps1"  # Dot-source the Monitor class from the same script directory
 
+# Function to start a simple HTTP server that serves Prometheus metrics
 function StartHttpServer {
+    # Instantiate the Monitor class
     $my_monitor = [Monitor]::new()
 
+    # Define the port on which to expose metrics (Put the same port in the prometheus configuration file)
     $port = 9186
     $listener = [System.Net.HttpListener]::new()
     try {
-        Write-Host "1"
-        $listener.Prefixes.Add("http://+:$($port)/")  # Bind to all network interfaces
-        Write-Host "2"
+        # Configure the HTTP listener to listen on all interfaces (0.0.0.0)
+        $listener.Prefixes.Add("http://+:$($port)/")
         $listener.Start()
-        Write-Host "3"
         Write-Host "Server started"
     }
     catch {
+        # Handle case where the listener fails to start (e.g., port already in use or admin rights missing)
         Write-Host "Failed to start HTTP listener: $_"
         exit 1
     }
 
+    # Graceful shutdown function
     function HandleExit {
         Write-Host "Exiting gracefully..."
         if ($listener) {
@@ -28,27 +32,38 @@ function StartHttpServer {
         exit 0
     }
 
-    while ($true) {
-
-        try {
+    try {
+        while ($listener.IsListening) {
+            # Wait for an incoming HTTP request (blocking call)
             $context = $listener.GetContext()
             $response = $context.Response
+
+            # Set appropriate headers for Prometheus metrics format
             $response.ContentType = "text/plain; version=0.0.4; charset=utf-8"
             $response.StatusCode = 200
 
-            # Get the Prometheus metrics and write to the response
+            # Collect the metrics from the Monitor instance and convert them to bytes
             $metrics = $my_monitor.prometheusFormatting()  # this function returns your formatted metrics
             $buffer = [System.Text.Encoding]::UTF8.GetBytes($metrics)
+
+            # Set content length and write response body
             $response.ContentLength64 = $buffer.Length
             $response.OutputStream.Write($buffer, 0, $buffer.Length)
 
-            # Close the response stream
+            # Properly close the output stream
             $response.OutputStream.Close()
+
+            Start-Sleep -Seconds 10
         }
-        catch {
-            Write-Host "Error while processing the request: $_"
-        }
+    }
+    catch {
+        # Handle any unexpected errors during request handling
+        Write-Host "Error while processing the request: $_"
+    }
+    finally{
+        HandleExit
     }
 }
 
+# Start the HTTP server
 StartHttpServer

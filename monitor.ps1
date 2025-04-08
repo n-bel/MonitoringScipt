@@ -3,32 +3,37 @@ class Monitor{
     [String]$configPath
     [String]$outputPath
 
+     # Constructor with both configPath and outputPath
     Monitor([String]$configPath, [String]$outputPath){
         $this.configPath = $configPath
         $this.outputPath = $outputPath
     }
 
+    # Constructor with only configPath, default outputPath
     Monitor([String]$configPath){
         $this.configPath = $configPath
         $this.outputPath = "metrics.txt"
     }
 
+    # Default constructor with default paths
     Monitor(){
         $this.configPath = "config.json"
         $this.outputPath = "metrics.txt"
     }
 
+    # Loads configuration from the given JSON file path
     [String] getConfiguration($path){
         try {
             # Variable containing the configuration data from the JSON file.
             $this.configuration = Get-Content $path | ConvertFrom-Json
         }
         catch {
-            Write-Host "Could not access/find the configuration file."
+            Write-Host "Could not access or find the configuration file."
         }
         return $this.configuration
     }
 
+    # Returns an array of CPU usage percentages
     [String[]] getCpusUsage(){
         $cpus_usage = ""
         try {
@@ -56,16 +61,19 @@ class Monitor{
         }
         return @("number_of_tcp_connections $($tcpConnections)")
     }
-
+    
+    # Retrieves memory-related metrics from the system
     [String[]] getMemory(){
-        # Retrieve the operating system information to get memory details
+        # Get memory statistics from the operating system
         $memory = Get-CimInstance -ClassName Win32_OperatingSystem
 
-        # Calculate the used memory by subtracting free memory from total memory
+        # Calculate used memory by subtracting free memory from total visible memory
         $usedMemory = $memory.TotalVisibleMemorySize - $memory.FreePhysicalMemory
 
+        # Retrieve page file usage statistics (requires administrative privileges)
         $paginationData = Get-CimInstance -ClassName Win32_PageFileUsage
 
+        # Format and return key memory metrics as an array of Prometheus-compatible strings
         $memoryMetrics = @(
         "available_memory $($memory.TotalVisibleMemorySize)",
         "free_memory $($memory.FreePhysicalMemory)",
@@ -77,9 +85,11 @@ class Monitor{
         return $memoryMetrics
     }
 
+    # Aggregates all collected system metrics and formats them in Prometheus-compatible format
     [String] prometheusFormatting(){
-        $metrics = ""
+        # Collect memory, CPU, and TCP metrics and concatenate them into a single string separated by newlines
         $metrics = ($this.getMemory() + $this.getCpusUsage() + $this.getTcpConnections()) -join "`n"
+        # Return the formatted metrics block
         return $metrics
     }
 }
